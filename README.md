@@ -1,8 +1,5 @@
 ---
 title: "Curso de Compiladores"
-author: ""
-date: "`r Sys.Date()`"
-output: html_document
 ---
 
 # Introducción a Compiladores
