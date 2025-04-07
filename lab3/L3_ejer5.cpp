@@ -8,8 +8,8 @@ using namespace std;
 
 class Token {
 public:
-    enum Type { LPAREN=0, RPAREN, PLUS, MINUS, MULT, DIV, POW, NUM, ERR, END ,FLOAT,ID};
-    static const char* token_names[12];
+    enum Type { LPAREN=0, RPAREN, PLUS, MINUS, MULT, DIV, POW, NUM, ERR, END ,FLOAT,ID,SIN,COS,LOG};
+    static const char* token_names[15];
     Type type;
     string lexema;
     Token(Type);
@@ -17,7 +17,7 @@ public:
     Token(Type, const string source);
 };
 
-const char* Token::token_names[12] = { "LPAREN" , "RPAREN", "PLUS", "MINUS", "MULT", "DIV", "POW", "NUM", "ERR", "END" ,"FLOAT","ID"};
+const char* Token::token_names[15] = { "LPAREN" , "RPAREN", "PLUS", "MINUS", "MULT", "DIV", "POW", "NUM", "ERR", "END" ,"FLOAT","ID","SIN","COS","LOG"};
 
 Token::Token(Type type):type(type) { lexema = ""; }
 
@@ -98,11 +98,14 @@ Token* Scanner::nextToken() {
             case 10: rollBack();
                 return new Token(Token::MULT,getLexema());//devuelve solo 'c' porque no se ha leido el siguiente caracter, hablamos de  '*'
             case 11: c = nextChar();
-                if (isalpha(c) || isdigit(c)) state = 11;
+                if (isalpha(c) or isdigit(c)) state = 11;
                 else state = 12;
                 break;
             case 12: rollBack();
-                return new Token(Token::ID, getLexema()); // devuelve el lexema de un identificador
+                if (getLexema() == "log") return new Token(Token::LOG,getLexema());
+                else if (getLexema() == "sin") return new Token(Token::SIN,getLexema());
+                else if (getLexema() == "cos") return new Token(Token::COS,getLexema());
+                else return new Token(Token::ID, getLexema()); // devuelve el lexema de un identificador
             case 13: c = nextChar();
                 if (isdigit(c)) state = 13;
                 else state = 14;
@@ -156,14 +159,18 @@ int main(int argc, const char* argv[]) {
     }
     cout << "last token " << tk << endl;
     delete tk;
-    // g++ L3_ejer2.cpp -o L3_ejer2.exe
-    // .\L3_ejer2.exe "2.4+2.66+a1"
+    // g++ L3_ejer5.cpp -o L3_ejer5.exe
+    // .\L3_ejer5.exe "2.4+2.66+a1+log(x1)"
     /*
             next token FLOAT(2.4)
             next token PLUS(+)
             next token FLOAT(2.66)
             next token PLUS(+)
             next token ID(a1)
+            next token PLUS(+)
+            next token LOG(log)
+            next token LPAREN
+            next token ID(x1))
             last token END
     */
 }

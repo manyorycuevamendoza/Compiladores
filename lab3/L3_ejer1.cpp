@@ -148,10 +148,10 @@ int main(int argc, const char* argv[]) {
     cout << "last token " << tk << endl;
     delete tk;
     // g++ L3_ejer1.cpp -o L3_ejer1.exe
-    // .\L3_ejer1.exe "2**4"
+    // .\L3_ejer1.exe "2*4"
     /*
         next token NUM(2)
-        next token POW(**)
+        next token POW(*)
         next token NUM(4)
         last token END
     */
