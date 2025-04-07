@@ -1,0 +1,644 @@
+#include <iostream>
+#include <cstring>
+#include <string>
+#include <fstream>
+#include <vector>
+#include <iomanip>
+
+using namespace std;
+
+class Token {
+public:
+    // Se agregan BIN, HEX, OCT como solicitados
+    enum Type { 
+        LPAREN=0, RPAREN, PLUS, MINUS, MULT, DIV, POW, 
+        NUM, ERR, END, ID, SIN, COS, LOG, PI, E, SEMICOLON, 
+        BIN, HEX, OCT 
+    };
+
+    static const char* token_names[20];
+    
+    Type type;
+    string lexema;
+    int line;
+    
+    Token(Type);
+    Token(Type, char c);
+    Token(Type, const string source);
+    Token(Type, int line);
+    Token(Type, char c, int line);
+    Token(Type, const string source, int line);
+};
+
+const char* Token::token_names[20] = { 
+    "LPAREN", "RPAREN", "PLUS", "MINUS", "MULT", "DIV", "POW", 
+    "NUM", "ERR", "END", "ID", "SIN", "COS", "LOG", "PI", "E", 
+    "SEMICOLON", "BIN", "HEX", "OCT"
+};
+
+Token::Token(Type type):type(type) {
+    lexema = "";
+    line = 0;
+}
+Token::Token(Type type, char c):type(type) {
+    lexema = c;
+    line = 0;
+}
+Token::Token(Type type, const string source):type(type) {
+    lexema = source;
+    line = 0;
+}
+Token::Token(Type type, int line):type(type), line(line) {
+    lexema = "";
+}
+Token::Token(Type type, char c, int line):type(type), line(line) {
+    lexema = c;
+}
+Token::Token(Type type, const string source, int line):type(type), line(line) {
+    lexema = source;
+}
+
+std::ostream& operator << ( std::ostream& outs, const Token & tok ) {
+    if (tok.lexema.empty())
+        return outs << Token::token_names[tok.type];
+    else
+        return outs << Token::token_names[tok.type] << "(" << tok.lexema << ")";
+}
+
+std::ostream& operator << ( std::ostream& outs, const Token* tok ) {
+    return outs << *tok;
+}
+
+class Scanner {
+public:
+    Scanner(const char* in_s);
+    Token* nextToken();
+    Token* nextTokenWithLine();
+    ~Scanner();
+    void printTokenTable();
+
+private:
+    string input;
+    int first, current;
+    int currentLine;
+    vector<Token*> tokensTable;
+    
+    char nextChar();
+    void rollBack();
+    void startLexema();
+    string getLexema();
+    bool isNumberChar(char c);
+    
+    // Métodos auxiliares para identificar cada tipo de número
+    Token* scanNumber();          // Versión para nextToken()
+    Token* scanNumberWithLine();  // Versión para nextTokenWithLine()
+};
+
+Scanner::Scanner(const char* s)
+    : input(s), first(0), current(0), currentLine(1) { }
+
+bool Scanner::isNumberChar(char c) {
+    return isdigit(c) || c == '.';
+}
+
+// ----------------------------------------------------------
+//   nextToken()
+//   + Manejo de comentarios '#' 
+//   + Manejo de binario, octal, hexadecimal, decimal
+// ----------------------------------------------------------
+Token* Scanner::nextToken() {
+    char c;
+    startLexema();
+    
+    while (true) {
+        c = nextChar();
+        
+        // Ignorar espacios en blanco, tabulaciones y saltos
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            // Podemos contar la línea si queremos, aquí no se hacía
+            startLexema();
+            if (c == '\n') {
+                // Si se desea, currentLine++ podría hacerse aquí.
+            }
+            continue;
+        }
+        
+        // Manejo de comentarios con '#': ignorar hasta fin de línea o fin de archivo
+        if (c == '#') {
+            while (c != '\n' && c != '\0') {
+                c = nextChar();
+            }
+
+
+
+            // Si encontramos '\n', se puede contar como línea nueva
+            if (c == '\n') {
+                // currentLine++;
+            }
+            startLexema();
+            
+            // Revisar si se acabó el archivo tras el comentario
+            if (c == '\0') {
+                return new Token(Token::END);
+            }
+            // continuar
+            continue;
+        }
+        
+        // Fin de archivo
+        if (c == '\0') {
+            if (first == current) {
+                return new Token(Token::END);
+            } else {
+                return new Token(Token::ERR, "Unexpected end of input");
+            }
+        }
+        
+        // Símbolos sencillos
+        if (c == '(') return new Token(Token::LPAREN);
+        if (c == ')') return new Token(Token::RPAREN);
+        if (c == '+') return new Token(Token::PLUS, c);
+        if (c == '-') return new Token(Token::MINUS, c);
+        if (c == ';') return new Token(Token::SEMICOLON, c);
+        
+        if (c == '*') {
+            char next = nextChar();
+            if (next == '*') {
+                return new Token(Token::POW, "**");
+            } else {
+                rollBack();
+                return new Token(Token::MULT, '*');
+            }
+        }
+        
+        if (c == '/') {
+            return new Token(Token::DIV, c);
+        }
+        
+        // Identificadores y palabras clave
+        if (isalpha(c)) {
+            string id;
+            id += c;
+            while ((c = nextChar()) && isalnum(c)) {
+                id += c;
+            }
+            rollBack();
+            
+            if (id == "sin") return new Token(Token::SIN);
+            if (id == "cos") return new Token(Token::COS);
+            if (id == "log") return new Token(Token::LOG);
+            if (id == "pi")  return new Token(Token::PI);
+            if (id == "e")   return new Token(Token::E);
+            return new Token(Token::ID, id);
+        }
+        
+
+        
+        // Números (decimal, bin, oct, hex)
+        if (isdigit(c)) {
+            // Se regresa la posición un paso atrás para escanear completo
+            rollBack();
+            return scanNumber();
+        }
+        
+        // Si no coincide con nada
+        return new Token(Token::ERR, string(1, c));
+    }
+}
+
+// ----------------------------------------------------------
+//   scanNumber()
+//   Se encarga de detectar BIN, OCT, HEX, o NUM (decimal)
+//   para nextToken()
+// ----------------------------------------------------------
+Token* Scanner::scanNumber() {
+    // Iniciamos desde la posición 'first'
+    startLexema();
+    char c = nextChar();
+    // 1) Si comienza con '0', mirar siguiente para bin/hex/oct.
+    if (c == '0') {
+        char p = nextChar();
+        // Binario: 0b o 0B
+        if (p == 'b' || p == 'B') {
+            // Reconocer secuencia de [0-1]+
+            string binLex = "0";
+            binLex.push_back(p);
+            
+            bool hasDigits = false;
+            while ((c = nextChar()) && (c == '0' || c == '1')) {
+                binLex.push_back(c);
+                hasDigits = true;
+            }
+            // Dejamos de leer binario, retroceder un carácter
+            rollBack();
+            
+            // Si no hay dígitos, es error
+            if (!hasDigits) {
+                return new Token(Token::ERR, binLex);
+            }
+            return new Token(Token::BIN, binLex);
+        }
+        // Hexadecimal: 0x o 0X
+        else if (p == 'x' || p == 'X') {
+            string hexLex = "0";
+            hexLex.push_back(p);
+            
+            bool hasHex = false;
+            while ((c = nextChar()) && 
+                   (isdigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) 
+            {
+                hexLex.push_back(c);
+                hasHex = true;
+            }
+            rollBack();
+            
+            if (!hasHex) {
+                return new Token(Token::ERR, hexLex);
+            }
+            return new Token(Token::HEX, hexLex);
+        }
+        // Octal: 0o o 0O
+        else if (p == 'o' || p == 'O') {
+            string octLex = "0";
+            octLex.push_back(p);
+            
+            bool hasOct = false;
+            while ((c = nextChar()) && (c >= '0' && c <= '7')) {
+                octLex.push_back(c);
+                hasOct = true;
+            }
+            rollBack();
+            
+            if (!hasOct) {
+                return new Token(Token::ERR, octLex);
+            }
+            return new Token(Token::OCT, octLex);
+        }
+        else {
+            // No era b, x, o => entonces lo tratamos como decimal normal
+            // Retrocedemos 'p'
+            rollBack();
+            
+            // Incluir el '0' que ya habíamos tomado
+            string decLex = "0";
+            
+            // Leer resto de dígitos decimales o '.'
+            bool hasDecimalPoint = false;
+            while ((c = nextChar()) && (isdigit(c) || (c == '.' && !hasDecimalPoint))) {
+                if (c == '.') hasDecimalPoint = true;
+                decLex.push_back(c);
+            }
+            rollBack();
+            
+            return new Token(Token::NUM, decLex);
+        }
+    }
+    else {
+        // 2) Caso: no empieza con '0', parseamos decimal normal
+        string decLex;
+        decLex.push_back(c);
+        bool hasDecimalPoint = false;
+        
+        while ((c = nextChar()) && (isdigit(c) || (c == '.' && !hasDecimalPoint))) {
+            if (c == '.') hasDecimalPoint = true;
+            decLex.push_back(c);
+        }
+        rollBack();
+        
+        return new Token(Token::NUM, decLex);
+    }
+}
+
+// ----------------------------------------------------------
+//   nextTokenWithLine()
+//   Idéntico a nextToken, pero lleva conteo de línea
+//   y guarda cada token en tokensTable
+// ----------------------------------------------------------
+Token* Scanner::nextTokenWithLine() {
+    char c;
+    startLexema();
+    
+    while (true) {
+        c = nextChar();
+        
+        // Ignorar espacios y tabs
+        if (c == ' ' || c == '\n' || c == '\t' || c == '\r'){
+            startLexema();
+            continue;
+        }
+        
+        // Contar los saltos de línea
+        if (c == '\n') {
+            currentLine++;
+            startLexema();
+            continue;
+        }
+        
+        // Fin de archivo
+        if (c == '\0') {
+            if (first == current) {
+                tokensTable.push_back(new Token(Token::END, currentLine));
+                return tokensTable.back();
+            } else {
+                tokensTable.push_back(new Token(Token::ERR, "Unexpected end of input", currentLine));
+                return tokensTable.back();
+            }
+        }
+        
+        // No debe reconocer comentarios
+        if (c == '#') {
+            // Ignorar hasta fin de línea o fin de archivo
+            while (c != '\n' && c != '\0') {
+                c = nextChar();
+            }
+            if (c == '\n') {
+                currentLine++;
+            }
+            startLexema();
+            if (c == '\0') {
+                tokensTable.push_back(new Token(Token::END, currentLine));
+                return tokensTable.back();
+            }
+            continue;
+        }
+        
+        // Símbolos
+        if (c == '(') {
+            tokensTable.push_back(new Token(Token::LPAREN,"(",currentLine));
+            return tokensTable.back();
+        }
+        if (c == ')') {
+            tokensTable.push_back(new Token(Token::RPAREN, ")",currentLine));
+            return tokensTable.back();
+        }
+        if (c == '+') {
+            tokensTable.push_back(new Token(Token::PLUS, c, currentLine));
+            return tokensTable.back();
+        }
+        if (c == '-') {
+            tokensTable.push_back(new Token(Token::MINUS, c, currentLine));
+            return tokensTable.back();
+        }
+        if (c == ';') {
+            tokensTable.push_back(new Token(Token::SEMICOLON, c, currentLine));
+            return tokensTable.back();
+        }
+        
+        if (c == '*') {
+            char nx = nextChar();
+            if (nx == '*') {
+                tokensTable.push_back(new Token(Token::POW, "**", currentLine));
+                return tokensTable.back();
+            } else {
+                rollBack();
+                tokensTable.push_back(new Token(Token::MULT, '*', currentLine));
+                return tokensTable.back();
+            }
+        }
+        
+        if (c == '/') {
+            tokensTable.push_back(new Token(Token::DIV, c, currentLine));
+            return tokensTable.back();
+        }
+        
+        // Identificador/palabra clave
+        if (isalpha(c)) {
+            string id;
+            id += c;
+            while ((c = nextChar()) && isalnum(c)) {
+                id += c;
+            }
+            rollBack();
+            
+            if (id == "sin") {
+                tokensTable.push_back(new Token(Token::SIN,"sin", currentLine));
+                return tokensTable.back();
+            }
+            if (id == "cos") {
+                tokensTable.push_back(new Token(Token::COS,"cos", currentLine));
+                return tokensTable.back();
+            }
+            if (id == "log") {
+                tokensTable.push_back(new Token(Token::LOG,"log", currentLine));
+                return tokensTable.back();
+            }
+            if (id == "pi") {
+                tokensTable.push_back(new Token(Token::PI,"pi", currentLine));
+                return tokensTable.back();
+            }
+            if (id == "e") {
+                tokensTable.push_back(new Token(Token::E,"e", currentLine));
+                return tokensTable.back();
+            }
+            tokensTable.push_back(new Token(Token::ID, id, currentLine));
+            return tokensTable.back();
+        }
+        
+        // Números
+        if (isdigit(c)) {
+            rollBack();
+            // Llamar a la versión de "scanNumberWithLine()"
+            Token* numberToken = scanNumberWithLine();
+            tokensTable.push_back(numberToken);
+            return tokensTable.back();
+        }
+        
+        // Carácter no reconocido
+        tokensTable.push_back(new Token(Token::ERR, string(1, c), currentLine));
+        return tokensTable.back();
+    }
+}
+
+// ----------------------------------------------------------
+//   scanNumberWithLine()
+//   Versión de scanNumber() que también asocia la línea 
+//   y guarda en tokensTable
+// ----------------------------------------------------------
+Token* Scanner::scanNumberWithLine() {
+    startLexema();
+    char c = nextChar();
+    
+    if (c == '0') {
+        char p = nextChar();
+        // Binario
+        if (p == 'b' || p == 'B') {
+            string binLex = "0";
+            binLex.push_back(p);
+            
+            bool hasDigits = false;
+            while ((c = nextChar()) && (c == '0' || c == '1')) {
+                binLex.push_back(c);
+                hasDigits = true;
+            }
+            rollBack();
+            
+            if (!hasDigits) {
+                // Error si no hay dígitos válidos
+                return new Token(Token::ERR, binLex, currentLine);
+            }
+            return new Token(Token::BIN, binLex, currentLine);
+        }
+        // Hexadecimal
+        else if (p == 'x' || p == 'X') {
+            string hexLex = "0";
+            hexLex.push_back(p);
+            
+            bool hasHex = false;
+            while ((c = nextChar()) && 
+                    (isdigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) 
+            {
+                hexLex.push_back(c);
+                hasHex = true;
+            }
+            rollBack();
+            
+            if (!hasHex) {
+                return new Token(Token::ERR, hexLex, currentLine);
+            }
+            return new Token(Token::HEX, hexLex, currentLine);
+        }
+        // Octal
+        else if (p == 'o' || p == 'O') {
+            string octLex = "0";
+            octLex.push_back(p);
+            
+            bool hasOct = false;
+            while ((c = nextChar()) && (c >= '0' && c <= '7')) {
+                octLex.push_back(c);
+                hasOct = true;
+            }
+            rollBack();
+            
+            if (!hasOct) {
+                return new Token(Token::ERR, octLex, currentLine);
+            }
+            return new Token(Token::OCT, octLex, currentLine);
+        }
+        else {
+            // No coincidió con b/B, x/X, o/O. Se trata como decimal normal
+            rollBack();  // Retroceder 'p'
+            
+            string decLex = "0";
+            bool hasDecimalPoint = false;
+            
+            while ((c = nextChar()) && (isdigit(c) || (c == '.' && !hasDecimalPoint))) {
+                if (c == '.') hasDecimalPoint = true;
+                decLex.push_back(c);
+            }
+            rollBack();
+            
+            return new Token(Token::NUM, decLex, currentLine);
+        }
+    }
+    else {
+        // Decimal normal
+        string decLex;
+        decLex.push_back(c);
+        bool hasDecimalPoint = false;
+        
+        while ((c = nextChar()) && (isdigit(c) || (c == '.' && !hasDecimalPoint))) {
+            if (c == '.') hasDecimalPoint = true;
+            decLex.push_back(c);
+        }
+        rollBack();
+        
+        return new Token(Token::NUM, decLex, currentLine);
+    }
+}
+
+// ----------------------------------------------------------
+//   Impresión de la tabla de tokens
+// ----------------------------------------------------------
+void Scanner::printTokenTable() {
+    cout << "+------------+------------+-------+" << endl;
+    cout << "| Lexema     | Token      | Linea |" << endl;
+    cout << "+------------+------------+-------+" << endl;
+    
+    for (Token* token : tokensTable) {
+        // Saltar el END en la impresión
+        if (token->type == Token::END) continue;
+        
+        cout << "| " << left << setw(10) << token->lexema
+             << " | " << setw(10) << Token::token_names[token->type]
+             << " | " << setw(5) << token->line << " |" << endl;
+    }
+    
+    cout << "+------------+------------+-------+" << endl;
+}
+
+Scanner::~Scanner() {
+    for (Token* token : tokensTable) {
+        delete token;
+    }
+}
+
+// ----------------------------------------------------------
+//   Funciones auxiliares
+// ----------------------------------------------------------
+char Scanner::nextChar() {
+    int c = input[current];
+    if (c != '\0') current++;
+    return c;
+}
+
+void Scanner::rollBack() {
+    if (current > 0)
+        current--;
+}
+
+void Scanner::startLexema() {
+    first = current;
+}
+
+string Scanner::getLexema() {
+    return input.substr(first, current-first);
+}
+
+// ----------------------------------------------------------
+//   main()
+// ----------------------------------------------------------
+int main(int argc, const char* argv[]) {
+    if (argc != 2) {
+        cout << "Uso: " << argv[0] << " <archivo>" << endl;
+        return 1;
+    }
+
+    ifstream file(argv[1]);
+    if (!file) {
+        cout << "Error al abrir el archivo " << argv[1] << endl;
+        return 1;
+    }
+
+    // Leemos todo el archivo a un string
+    string input((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+    file.close();
+
+    // Validar que termine en ';'
+    if (input.empty() || input.back() != ';') {
+        cout << "Error: El archivo debe terminar con un punto y coma (;)" << endl;
+        return 1;
+    }
+
+    // 1) Mostrar salida original del scanner
+    cout << "=== SALIDA SCANNER ===" << endl;
+    Scanner scanner1(input.c_str());
+    Token* tk = scanner1.nextToken();
+    while (tk->type != Token::END) {
+        cout << "next token " << tk << endl;
+        delete tk;
+        tk = scanner1.nextToken();
+    }
+    cout << "last token " << tk << endl;
+    delete tk;
+
+    // 2) Mostrar tabla de tokens
+    cout << "\n=== TABLA DE TOKENS ===" << endl;
+    Scanner scanner2(input.c_str());
+    tk = scanner2.nextTokenWithLine();
+    while (tk->type != Token::END) {
+        tk = scanner2.nextTokenWithLine();
+    }
+    scanner2.printTokenTable();
+
+    return 0;
+}
