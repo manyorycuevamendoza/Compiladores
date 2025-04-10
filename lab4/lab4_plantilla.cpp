@@ -9,8 +9,8 @@ using namespace std;
 
 class Token {
 public:
-    enum Type { LPAREN=0, RPAREN, PLUS, MINUS, MULT, DIV, POW, NUM, ERR, END, ID, SIN, COS, LOG, PI, E, SEMICOLON, BIN , HEX, OCT };
-    static const char* token_names[20];
+    enum Type { LPAREN=0, RPAREN, PLUS, MINUS, MULT, DIV, POW, NUM, ERR, END, ID, SIN, COS, LOG, PI, E, SEMICOLON };
+    static const char* token_names[17];
     Type type;
     string lexema;
     int line;
@@ -22,7 +22,7 @@ public:
     Token(Type, const string source, int line);
 };
 
-const char* Token::token_names[20] = { "LPAREN", "RPAREN", "PLUS", "MINUS", "MULT", "DIV", "POW", "NUM", "ERR", "END", "ID", "SIN", "COS", "LOG", "PI", "E", "SEMICOLON", "BIN", "HEX", "OCT" };
+const char* Token::token_names[17] = { "LPAREN", "RPAREN", "PLUS", "MINUS", "MULT", "DIV", "POW", "NUM", "ERR", "END", "ID", "SIN", "COS", "LOG", "PI", "E", "SEMICOLON" };
 
 Token::Token(Type type):type(type) { lexema = ""; line = 0; }
 Token::Token(Type type, char c):type(type) { lexema = c; line = 0; }
@@ -79,23 +79,6 @@ Token* Scanner::nextToken() {
             continue;
         }
         
-        //no debe reconocer los comentarios
-        if (c == '#'){
-            while(c != '\n' && c != '\0'){
-                c = nextChar();
-            }
-            //si hay un salto de linea, se cuenta como una nueva linea 
-            if (c == '\n') {
-                currentLine++;
-                startLexema();
-                continue;
-                
-            } else if (c == '\0') {
-                return new Token(Token::END);
-            } else {
-                rollBack();
-        }
-            }
         if (c == '\0') {
             if (first == current) {
                 return new Token(Token::END);
@@ -367,6 +350,15 @@ int main(int argc, const char* argv[]) {
         tk = scanner2.nextTokenWithLine();
     }
     scanner2.printTokenTable();
-
+    // cd ".\Compiladores\"
+    // g++ lab4_plantilla.cpp -o lab4_plantilla.exe
+    // .\'lab4_plantilla.exe' input.txt
+    /*
+        La entrada se encuentra en el archivo input.txt y 
+        debe terminar con un punto y coma (;).
+        
+        El programa escanea el archivo y muestra los tokens 
+        encontrados, así como una tabla de tokens.
+    */
     return 0;
 }

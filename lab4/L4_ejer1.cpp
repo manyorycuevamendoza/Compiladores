@@ -9,8 +9,8 @@ using namespace std;
 
 class Token {
 public:
-    enum Type { LPAREN=0, RPAREN, PLUS, MINUS, MULT, DIV, POW, NUM, ERR, END, ID, SIN, COS, LOG, PI, E, SEMICOLON, BIN , HEX, OCT };
-    static const char* token_names[20];
+    enum Type { LPAREN=0, RPAREN, PLUS, MINUS, MULT, DIV, POW, NUM, ERR, END, ID, SIN, COS, LOG, PI, E, SEMICOLON };
+    static const char* token_names[17];
     Type type;
     string lexema;
     int line;
@@ -22,7 +22,7 @@ public:
     Token(Type, const string source, int line);
 };
 
-const char* Token::token_names[20] = { "LPAREN", "RPAREN", "PLUS", "MINUS", "MULT", "DIV", "POW", "NUM", "ERR", "END", "ID", "SIN", "COS", "LOG", "PI", "E", "SEMICOLON", "BIN", "HEX", "OCT" };
+const char* Token::token_names[17] = { "LPAREN", "RPAREN", "PLUS", "MINUS", "MULT", "DIV", "POW", "NUM", "ERR", "END", "ID", "SIN", "COS", "LOG", "PI", "E", "SEMICOLON" };
 
 Token::Token(Type type):type(type) { lexema = ""; line = 0; }
 Token::Token(Type type, char c):type(type) { lexema = c; line = 0; }
@@ -79,23 +79,6 @@ Token* Scanner::nextToken() {
             continue;
         }
         
-        //no debe reconocer los comentarios
-        if (c == '#'){
-            while(c != '\n' && c != '\0'){
-                c = nextChar();
-            }
-            //si hay un salto de linea, se cuenta como una nueva linea 
-            if (c == '\n') {
-                currentLine++;
-                startLexema();
-                continue;
-                
-            } else if (c == '\0') {
-                return new Token(Token::END);
-            } else {
-                rollBack();
-        }
-            }
         if (c == '\0') {
             if (first == current) {
                 return new Token(Token::END);
@@ -367,6 +350,18 @@ int main(int argc, const char* argv[]) {
         tk = scanner2.nextTokenWithLine();
     }
     scanner2.printTokenTable();
+    // linux
+    // cd ".\Compiladores\"
+    // g++ L4_ejer1.cpp -o L4_ejer1
+    // ./L4_ejer1 input.txt
+    /*
+        1 + 2 #hola mundo
+        1+2#hola mundo; 
+    */
 
+
+    // windows
+    // g++ L4_ejer1.cpp -o L4_ejer1.exe windows
+    // .\L4_ejer1.exe input.txt
     return 0;
 }
