@@ -1,0 +1,1 @@
+a=2; b=3; c=4; d=(a+b)*c + 5**2 - sqrt(81); a+=b*c; print(a); print(d); print((a+d)/2)

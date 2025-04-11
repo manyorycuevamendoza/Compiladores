@@ -1,0 +1,2 @@
+Ejecucion:
+Error: división por cero
